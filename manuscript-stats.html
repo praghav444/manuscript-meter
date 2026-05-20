@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ManuscriptMeter — Journal Submission Stats</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+  :root {
+    --ink:       #1a1a2e;
+    --paper:     #faf8f4;
+    --cream:     #f2ede3;
+    --rule:      #d6cfc0;
+    --accent:    #2d6a4f;
+    --accent2:   #b5451b;
+    --gold:      #c9a84c;
+    --muted:     #7a7265;
+    --card-bg:   #ffffff;
+    --shadow:    0 2px 16px rgba(26,26,46,0.07);
+    --radius:    6px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 300;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Header ── */
+  header {
+    background: var(--ink);
+    color: var(--paper);
+    padding: 2rem 2.5rem 1.8rem;
+    position: relative;
+    overflow: hidden;
+  }
+  header::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent) 0%, var(--gold) 50%, var(--accent2) 100%);
+  }
+  .header-inner {
+    max-width: 860px;
+    margin: 0 auto;
+  }
+  .logo {
+    font-family: 'DM Serif Display', serif;
+    font-size: 2rem;
+    letter-spacing: -0.01em;
+    line-height: 1;
+  }
+  .logo span { color: var(--gold); font-style: italic; }
+  .tagline {
+    font-size: 0.82rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--rule);
+    margin-top: 0.35rem;
+  }
+
+  /* ── Privacy badge ── */
+  .privacy-strip {
+    background: var(--accent);
+    color: #fff;
+    font-size: 0.76rem;
+    letter-spacing: 0.06em;
+    text-align: center;
+    padding: 0.45rem 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-weight: 500;
+  }
+  .privacy-strip svg { flex-shrink: 0; }
+
+  /* ── Main layout ── */
+  main {
+    flex: 1;
+    max-width: 860px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 2.5rem 1.5rem 4rem;
+  }
+
+  /* ── Drop zone ── */
+  .drop-zone {
+    border: 2px dashed var(--rule);
+    border-radius: var(--radius);
+    background: var(--card-bg);
+    padding: 3.5rem 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+  }
+  .drop-zone.dragover {
+    border-color: var(--accent);
+    background: #f0f7f3;
+  }
+  .drop-zone input[type="file"] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+  }
+  .drop-icon {
+    width: 56px; height: 56px;
+    margin: 0 auto 1.2rem;
+    background: var(--cream);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .drop-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.35rem;
+    color: var(--ink);
+    margin-bottom: 0.4rem;
+  }
+  .drop-sub {
+    font-size: 0.85rem;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+  .drop-sub strong { color: var(--ink); font-weight: 500; }
+  .browse-btn {
+    display: inline-block;
+    margin-top: 1.2rem;
+    background: var(--ink);
+    color: var(--paper);
+    padding: 0.55rem 1.5rem;
+    border-radius: 3px;
+    font-size: 0.82rem;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    font-weight: 500;
+    pointer-events: none;
+  }
+
+  /* ── Section headers ── */
+  .section-rule {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    margin: 2.2rem 0 1.2rem;
+  }
+  .section-rule span {
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    white-space: nowrap;
+    font-weight: 500;
+  }
+  .section-rule hr {
+    flex: 1; border: none; border-top: 1px solid var(--rule);
+  }
+
+  /* ── Exclusion checkboxes ── */
+  .exclusions {
+    background: var(--card-bg);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    padding: 1.2rem 1.4rem;
+  }
+  .excl-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 0.6rem 1.2rem;
+    margin-top: 0.7rem;
+  }
+  .excl-item {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    font-size: 0.85rem;
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .excl-item input[type="checkbox"] {
+    accent-color: var(--accent);
+    width: 15px; height: 15px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .excl-label { line-height: 1.3; }
+  .excl-label small { display: block; font-size: 0.73rem; color: var(--muted); }
+
+  /* ── Analyze button ── */
+  .btn-analyze {
+    display: block;
+    width: 100%;
+    margin-top: 1.4rem;
+    padding: 0.85rem 1rem;
+    background: var(--accent);
+    color: #fff;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    border: none;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: background 0.15s, opacity 0.15s;
+  }
+  .btn-analyze:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-analyze:not(:disabled):hover { background: #235c41; }
+
+  /* ── Progress ── */
+  .progress-wrap { margin-top: 1.5rem; display: none; }
+  .progress-label {
+    font-size: 0.8rem; color: var(--muted); margin-bottom: 0.4rem;
+    font-family: 'DM Mono', monospace;
+  }
+  .progress-bar-bg {
+    height: 4px; background: var(--cream); border-radius: 2px; overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%; background: var(--accent);
+    border-radius: 2px;
+    width: 0%;
+    transition: width 0.3s ease;
+  }
+
+  /* ── Results ── */
+  #results { display: none; margin-top: 2rem; }
+
+  .filename-badge {
+    display: inline-flex; align-items: center; gap: 0.45rem;
+    background: var(--cream); border: 1px solid var(--rule);
+    border-radius: 3px; padding: 0.3rem 0.7rem;
+    font-size: 0.78rem; color: var(--muted); font-family: 'DM Mono', monospace;
+    margin-bottom: 1.4rem;
+    max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  /* Stats cards */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+  }
+  @media (max-width: 600px) {
+    .stats-grid { grid-template-columns: 1fr 1fr; }
+  }
+  .stat-card {
+    background: var(--card-bg);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    padding: 1.2rem 1rem 1rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+  }
+  .stat-card.primary::before   { background: var(--accent); }
+  .stat-card.secondary::before { background: var(--accent2); }
+  .stat-card.tertiary::before  { background: var(--gold); }
+
+  .stat-value {
+    font-family: 'DM Serif Display', serif;
+    font-size: 2.4rem;
+    line-height: 1;
+    color: var(--ink);
+  }
+  .stat-label {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    margin-top: 0.3rem;
+    font-weight: 500;
+  }
+  .stat-note {
+    font-size: 0.72rem;
+    color: var(--muted);
+    margin-top: 0.55rem;
+    line-height: 1.4;
+  }
+
+  /* Detail breakdown */
+  .detail-box {
+    background: var(--card-bg);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    margin-top: 1rem;
+    overflow: hidden;
+  }
+  .detail-box summary {
+    padding: 0.9rem 1.1rem;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--muted);
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    list-style: none;
+    display: flex; align-items: center; justify-content: space-between;
+    user-select: none;
+  }
+  .detail-box summary::-webkit-details-marker { display: none; }
+  .detail-box[open] summary { border-bottom: 1px solid var(--rule); }
+  .detail-body { padding: 1rem 1.1rem; font-size: 0.84rem; }
+  .detail-row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid var(--cream);
+  }
+  .detail-row:last-child { border-bottom: none; }
+  .detail-row .dr-label { color: var(--muted); }
+  .detail-row .dr-val { font-family: 'DM Mono', monospace; font-size: 0.82rem; color: var(--ink); }
+  .dr-excluded { text-decoration: line-through; opacity: 0.5; }
+
+  /* Copy button */
+  .copy-row {
+    display: flex; gap: 0.7rem; margin-top: 1.2rem; flex-wrap: wrap;
+  }
+  .btn-copy {
+    padding: 0.5rem 1.1rem;
+    background: transparent;
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    font-size: 0.78rem;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .btn-copy:hover { background: var(--cream); }
+  .btn-reset {
+    padding: 0.5rem 1.1rem;
+    background: transparent;
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    font-size: 0.78rem;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--accent2);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .btn-reset:hover { background: #fdf0ec; }
+
+  /* ── Error ── */
+  .error-box {
+    background: #fff5f2;
+    border: 1px solid #f5c5b4;
+    border-radius: var(--radius);
+    padding: 1rem 1.2rem;
+    font-size: 0.85rem;
+    color: var(--accent2);
+    margin-top: 1rem;
+    display: none;
+  }
+
+  /* ── Footer ── */
+  footer {
+    border-top: 1px solid var(--rule);
+    padding: 1rem 2rem;
+    font-size: 0.74rem;
+    color: var(--muted);
+    text-align: center;
+    display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+
+  /* chevron for details */
+  .chev { transition: transform 0.2s; }
+  details[open] .chev { transform: rotate(180deg); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="logo">Manuscript<span>Meter</span></div>
+    <div class="tagline">Journal Submission Statistics Tool</div>
+  </div>
+</header>
+
+<div class="privacy-strip">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+  </svg>
+  Your file never leaves your device — all processing happens locally in your browser
+</div>
+
+<main>
+
+  <!-- Drop zone -->
+  <div class="drop-zone" id="dropZone">
+    <input type="file" id="fileInput" accept=".docx">
+    <div class="drop-icon">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2d6a4f" stroke-width="1.8">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <line x1="12" y1="18" x2="12" y2="12"/>
+        <line x1="9" y1="15" x2="15" y2="15"/>
+      </svg>
+    </div>
+    <div class="drop-title">Drop your manuscript here</div>
+    <div class="drop-sub">
+      Supports <strong>.docx</strong> files (Microsoft Word)<br>
+      File is processed entirely in your browser — nothing is uploaded
+    </div>
+    <div class="browse-btn">Browse file</div>
+  </div>
+
+  <!-- Exclusions -->
+  <div class="section-rule"><hr><span>Exclude from word count</span><hr></div>
+  <div class="exclusions">
+    <div style="font-size:0.78rem;color:var(--muted);letter-spacing:0.05em;text-transform:uppercase;font-weight:500;">Select sections to exclude</div>
+    <div class="excl-grid">
+      <label class="excl-item">
+        <input type="checkbox" id="excl-title" checked>
+        <span class="excl-label">Title<small>Document title / heading 1</small></span>
+      </label>
+      <label class="excl-item">
+        <input type="checkbox" id="excl-abstract" checked>
+        <span class="excl-label">Plain-language summary / Abstract<small>Detected by heading keyword</small></span>
+      </label>
+      <label class="excl-item">
+        <input type="checkbox" id="excl-authors" checked>
+        <span class="excl-label">Author list &amp; affiliations<small>Lines after title before body</small></span>
+      </label>
+      <label class="excl-item">
+        <input type="checkbox" id="excl-tables" checked>
+        <span class="excl-label">Tables<small>All table cell text</small></span>
+      </label>
+      <label class="excl-item">
+        <input type="checkbox" id="excl-refs" checked>
+        <span class="excl-label">References / Bibliography<small>Detected by section heading</small></span>
+      </label>
+      <label class="excl-item">
+        <input type="checkbox" id="excl-captions">
+        <span class="excl-label">Figure captions<small>Lines beginning "Figure" / "Fig."</small></span>
+      </label>
+    </div>
+  </div>
+
+  <button class="btn-analyze" id="analyzeBtn" disabled>Analyse Manuscript</button>
+
+  <!-- Progress -->
+  <div class="progress-wrap" id="progressWrap">
+    <div class="progress-label" id="progressLabel">Reading file…</div>
+    <div class="progress-bar-bg"><div class="progress-bar-fill" id="progressFill"></div></div>
+  </div>
+
+  <!-- Error -->
+  <div class="error-box" id="errorBox"></div>
+
+  <!-- Results -->
+  <div id="results">
+    <div class="filename-badge" id="filenameBadge">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+      </svg>
+      <span id="filenameText"></span>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card primary">
+        <div class="stat-value" id="res-words">—</div>
+        <div class="stat-label">Words</div>
+        <div class="stat-note" id="res-words-note"></div>
+      </div>
+      <div class="stat-card secondary">
+        <div class="stat-value" id="res-tables">—</div>
+        <div class="stat-label">Tables</div>
+        <div class="stat-note" id="res-tables-note"></div>
+      </div>
+      <div class="stat-card tertiary">
+        <div class="stat-value" id="res-figures">—</div>
+        <div class="stat-label">Figures</div>
+        <div class="stat-note" id="res-figures-note"></div>
+      </div>
+    </div>
+
+    <details class="detail-box" id="detailBox">
+      <summary>
+        <span>Detailed breakdown</span>
+        <svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </summary>
+      <div class="detail-body" id="detailBody"></div>
+    </details>
+
+    <div class="copy-row">
+      <button class="btn-copy" id="btnCopy">Copy summary</button>
+      <button class="btn-reset" id="btnReset">Analyse another file</button>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+  </svg>
+  100% client-side · no server · no data transmitted · open source on
+  <a href="https://github.com" target="_blank" rel="noopener">GitHub</a>
+  · Free to use &amp; share
+</footer>
+
+<script>
+/* ─────────────────────────────────────────────
+   ManuscriptMeter — core logic
+   All file parsing runs inside the browser.
+   No data is sent to any server.
+───────────────────────────────────────────── */
+
+const dropZone    = document.getElementById('dropZone');
+const fileInput   = document.getElementById('fileInput');
+const analyzeBtn  = document.getElementById('analyzeBtn');
+const progressWrap= document.getElementById('progressWrap');
+const progressFill= document.getElementById('progressFill');
+const progressLabel=document.getElementById('progressLabel');
+const resultsDiv  = document.getElementById('results');
+const errorBox    = document.getElementById('errorBox');
+
+let selectedFile = null;
+
+// ── File selection ───────────────────────────
+fileInput.addEventListener('change', e => {
+  if (e.target.files[0]) pickFile(e.target.files[0]);
+});
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  const f = e.dataTransfer.files[0];
+  if (f) pickFile(f);
+});
+
+function pickFile(f) {
+  if (!f.name.match(/\.docx$/i)) {
+    showError('Please upload a .docx (Word) file.');
+    return;
+  }
+  selectedFile = f;
+  analyzeBtn.disabled = false;
+  hideError();
+  resultsDiv.style.display = 'none';
+  dropZone.querySelector('.drop-title').textContent = f.name;
+  dropZone.querySelector('.drop-sub').textContent = `${(f.size/1024).toFixed(1)} KB · ready to analyse`;
+}
+
+// ── Analyse ──────────────────────────────────
+analyzeBtn.addEventListener('click', async () => {
+  if (!selectedFile) return;
+  hideError();
+  resultsDiv.style.display = 'none';
+  setProgress(true, 'Reading file…', 10);
+
+  try {
+    const stats = await analyseDocx(selectedFile);
+    setProgress(false);
+    showResults(stats, selectedFile.name);
+  } catch(err) {
+    setProgress(false);
+    showError('Could not parse file: ' + err.message);
+  }
+});
+
+// ── DOCX parser ──────────────────────────────
+async function analyseDocx(file) {
+  const arrayBuffer = await file.arrayBuffer();
+  setProgress(true, 'Unzipping document…', 25);
+
+  const zip = await JSZip.loadAsync(arrayBuffer);
+
+  // Read document.xml (body paragraphs)
+  const docXml = await zip.file('word/document.xml').async('string');
+  setProgress(true, 'Parsing paragraphs…', 45);
+
+  // Count embedded images in document relationships
+  const relsFile = zip.file('word/_rels/document.xml.rels');
+  const relsXml  = relsFile ? await relsFile.async('string') : '';
+
+  // Count tables in media folder too (drawings)
+  setProgress(true, 'Counting figures & tables…', 65);
+
+  const parser  = new DOMParser();
+  const xmlDoc  = parser.parseFromString(docXml, 'text/xml');
+  const relsDoc = parser.parseFromString(relsXml, 'text/xml');
+
+  const result = await parseDocument(xmlDoc, relsDoc, zip);
+  setProgress(true, 'Counting words…', 85);
+
+  return result;
+}
+
+// ── Keyword matchers ─────────────────────────
+const ABSTRACT_KW  = /^\s*(abstract|plain[\s\-]?language\s+(summary|statement)|lay\s+summary|summary|significance\s+statement|graphical\s+abstract)\s*$/i;
+const REFS_KW      = /^\s*(references|bibliography|works\s+cited|literature\s+cited|reference\s+list)\s*$/i;
+const FIGURE_LINE  = /^\s*fig(ure|\.)\s*\d+/i;
+const AUTHOR_BLOCK = /^\s*([A-ZÀ-Ö][a-zà-ö]+[\s,]){2,}/; // crude heuristic: author-like line
+
+async function parseDocument(xmlDoc, relsDoc, zip) {
+  // ── Extract all paragraphs ──
+  const ns = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+  const body = xmlDoc.getElementsByTagNameNS(ns, 'body')[0] || xmlDoc.querySelector('body');
+
+  // Get all block-level elements in document order
+  const allParas = xmlDoc.getElementsByTagNameNS(ns, 'p');
+  const allTbls  = xmlDoc.getElementsByTagNameNS(ns, 'tbl');
+
+  // ── Count tables ──
+  const tableCount = allTbls.length;
+
+  // ── Count figures ──
+  // Get all image relationships
+  const imageRels = relsDoc.querySelectorAll
+    ? Array.from(relsDoc.querySelectorAll('Relationship')).filter(r =>
+        (r.getAttribute('Type') || '').includes('/image'))
+    : [];
+
+  // Deduplicate by file size: read each image file from the zip and group by byte length.
+  // Word sometimes stores the same image twice (e.g. image1.png + image10.png) as
+  // identical byte-for-byte copies. Counting unique sizes gives the true figure count.
+  const imageSizes = new Set();
+  for (const r of imageRels) {
+    const target = r.getAttribute('Target') || '';
+    // target is relative to word/, e.g. "media/image1.png" → "word/media/image1.png"
+    const zipPath = 'word/' + target.replace(/^\//, '');
+    const entry = zip.file(zipPath);
+    if (entry) {
+      const bytes = await entry.async('uint8array');
+      imageSizes.add(bytes.length);
+    }
+  }
+  const embeddedImages = imageSizes.size || imageRels.length;
+
+  // Count figure caption paragraphs as a cross-check
+  const captionParas = [];
+  for (let p of allParas) {
+    const txt = getParaText(p);
+    if (FIGURE_LINE.test(txt)) captionParas.push(txt);
+  }
+  const figureCount = embeddedImages > 0 ? embeddedImages : captionParas.length;
+
+  // ── Paragraph classification ──
+  const paragraphs = [];
+  for (let p of allParas) {
+    const txt = getParaText(p).trim();
+    if (!txt) continue;
+    const style = getStyle(p);
+    paragraphs.push({ text: txt, style });
+  }
+
+  // ── Table text extraction (for exclusion) ──
+  let tableWords = 0;
+  for (let tbl of allTbls) {
+    const cellParas = tbl.getElementsByTagNameNS(ns, 'p');
+    for (let cp of cellParas) {
+      tableWords += countWords(getParaText(cp));
+    }
+  }
+
+  // ── Classify paragraphs ──
+  const stats = classifyAndCount(paragraphs, tableWords, figureCount, tableCount, captionParas.length);
+  return stats;
+}
+
+function classifyAndCount(paragraphs, tableWordCount, figureCount, tableCount, captionCount) {
+  const excl = {
+    title:    document.getElementById('excl-title').checked,
+    abstract: document.getElementById('excl-abstract').checked,
+    authors:  document.getElementById('excl-authors').checked,
+    tables:   document.getElementById('excl-tables').checked,
+    refs:     document.getElementById('excl-refs').checked,
+    captions: document.getElementById('excl-captions').checked,
+  };
+
+  let titleWords = 0, abstractWords = 0, authorWords = 0, refWords = 0, captionWords = 0, bodyWords = 0;
+  let inAbstract = false, inRefs = false, afterTitle = false, inAuthorBlock = false;
+  let authorBlockDone = false;
+  let titleFound = false;
+
+  for (let i = 0; i < paragraphs.length; i++) {
+    const { text, style } = paragraphs[i];
+    const wc = countWords(text);
+
+    const isHeading = /heading|title/i.test(style);
+    const isAbstractHead = ABSTRACT_KW.test(text);
+    const isRefsHead = REFS_KW.test(text);
+    const isCaptionLine = FIGURE_LINE.test(text);
+
+    // Title detection: first heading OR first non-empty para if Heading1
+    if (!titleFound && (style === 'Heading1' || (i === 0 && isHeading) || (i === 0 && !isHeading && text.length < 250))) {
+      titleFound = true;
+      titleWords += wc;
+      afterTitle = true;
+      continue;
+    }
+
+    // Abstract heading
+    if (isAbstractHead) {
+      inAbstract = true; inRefs = false; authorBlockDone = true; inAuthorBlock = false;
+      abstractWords += wc; // heading itself counts as abstract
+      continue;
+    }
+
+    // Refs heading
+    if (isRefsHead) {
+      inRefs = true; inAbstract = false;
+      refWords += wc;
+      continue;
+    }
+
+    if (inRefs) { refWords += wc; continue; }
+    if (inAbstract) {
+      // End abstract at next heading
+      if (isHeading && !isAbstractHead) { inAbstract = false; }
+      else { abstractWords += wc; continue; }
+    }
+
+    // Author block: after title, before abstract, short lines typical of author listings
+    if (afterTitle && !authorBlockDone && !inAbstract && !inRefs) {
+      // Heuristic: author blocks are short non-sentence paragraphs
+      const isLikelyAuthor = text.length < 180 && !text.match(/[.?!]$/) || AUTHOR_BLOCK.test(text);
+      if (isLikelyAuthor && !isHeading) {
+        authorWords += wc;
+        inAuthorBlock = true;
+        continue;
+      } else if (inAuthorBlock || isHeading) {
+        authorBlockDone = true;
+      }
+    }
+
+    // Figure caption lines
+    if (isCaptionLine) { captionWords += wc; continue; }
+
+    bodyWords += wc;
+  }
+
+  // Total with all text
+  const totalAllWords = titleWords + abstractWords + authorWords + refWords + captionWords + bodyWords + tableWordCount;
+
+  // Apply exclusions
+  let excludedWords = 0;
+  const exclBreakdown = {};
+
+  if (excl.title)    { excludedWords += titleWords;     exclBreakdown['Title']                = titleWords; }
+  if (excl.abstract) { excludedWords += abstractWords;  exclBreakdown['Abstract/PLS']         = abstractWords; }
+  if (excl.authors)  { excludedWords += authorWords;    exclBreakdown['Author list']          = authorWords; }
+  if (excl.tables)   { excludedWords += tableWordCount; exclBreakdown['Tables']               = tableWordCount; }
+  if (excl.refs)     { excludedWords += refWords;       exclBreakdown['References']           = refWords; }
+  if (excl.captions) { excludedWords += captionWords;   exclBreakdown['Figure captions']      = captionWords; }
+
+  const finalWords = totalAllWords - excludedWords;
+
+  return {
+    finalWords, totalAllWords, excludedWords,
+    tableCount, figureCount,
+    breakdown: {
+      body: bodyWords,
+      title: titleWords,
+      abstract: abstractWords,
+      authors: authorWords,
+      tables: tableWordCount,
+      refs: refWords,
+      captions: captionWords,
+    },
+    exclBreakdown,
+    excl,
+    captionCount,
+  };
+}
+
+// ── XML helpers ───────────────────────────────
+function getParaText(p) {
+  const ns = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+  const runs = p.getElementsByTagNameNS(ns, 't');
+  let t = '';
+  for (let r of runs) t += r.textContent;
+  return t;
+}
+function getStyle(p) {
+  const ns = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+  const pPr = p.getElementsByTagNameNS(ns, 'pPr')[0];
+  if (!pPr) return 'Normal';
+  const pStyle = pPr.getElementsByTagNameNS(ns, 'pStyle')[0];
+  return pStyle ? pStyle.getAttribute('http://schemas.openxmlformats.org/wordprocessingml/2006/main' + ':val') || pStyle.getAttribute('w:val') || 'Normal' : 'Normal';
+}
+
+function countWords(str) {
+  if (!str || !str.trim()) return 0;
+  return str.trim().split(/\s+/).filter(w => w.length > 0).length;
+}
+
+// ── Show results ─────────────────────────────
+function showResults(stats, filename) {
+  document.getElementById('filenameText').textContent = filename;
+  document.getElementById('res-words').textContent  = stats.finalWords.toLocaleString();
+  document.getElementById('res-tables').textContent = stats.tableCount.toLocaleString();
+  document.getElementById('res-figures').textContent= stats.figureCount.toLocaleString();
+
+  const exclList = Object.keys(stats.exclBreakdown).join(', ') || 'none';
+  document.getElementById('res-words-note').textContent  = `Excluding: ${exclList}`;
+  document.getElementById('res-tables-note').textContent = `Detected in document body`;
+  document.getElementById('res-figures-note').textContent= `Embedded images / anchors`;
+
+  // Detailed breakdown
+  const db = document.getElementById('detailBody');
+  const rows = [
+    ['Total words (all text)', stats.totalAllWords],
+    ['─ Body / main text',     stats.breakdown.body],
+    ['─ Title',                stats.breakdown.title,    stats.excl.title],
+    ['─ Abstract / PLS',       stats.breakdown.abstract, stats.excl.abstract],
+    ['─ Author list',          stats.breakdown.authors,  stats.excl.authors],
+    ['─ Tables',               stats.breakdown.tables,   stats.excl.tables],
+    ['─ References',           stats.breakdown.refs,     stats.excl.refs],
+    ['─ Figure captions',      stats.breakdown.captions, stats.excl.captions],
+    ['Words excluded',         stats.excludedWords],
+    ['Words counted (final)',  stats.finalWords],
+    ['Tables',                 stats.tableCount],
+    ['Figures (embedded)',     stats.figureCount],
+  ];
+
+  db.innerHTML = rows.map(([label, val, excluded]) => `
+    <div class="detail-row">
+      <span class="dr-label ${excluded ? 'dr-excluded' : ''}">${label}${excluded ? ' ✕' : ''}</span>
+      <span class="dr-val">${(val ?? 0).toLocaleString()}</span>
+    </div>
+  `).join('');
+
+  resultsDiv.style.display = 'block';
+}
+
+// ── Copy summary ─────────────────────────────
+document.getElementById('btnCopy').addEventListener('click', () => {
+  const words   = document.getElementById('res-words').textContent;
+  const tables  = document.getElementById('res-tables').textContent;
+  const figures = document.getElementById('res-figures').textContent;
+  const fname   = document.getElementById('filenameText').textContent;
+  const note    = document.getElementById('res-words-note').textContent;
+  const text = `Manuscript Statistics — ${fname}\nWords: ${words} (${note})\nTables: ${tables}\nFigures: ${figures}`;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('btnCopy');
+    btn.textContent = 'Copied ✓';
+    setTimeout(() => btn.textContent = 'Copy summary', 2000);
+  });
+});
+
+// ── Reset ─────────────────────────────────────
+document.getElementById('btnReset').addEventListener('click', () => {
+  selectedFile = null;
+  fileInput.value = '';
+  analyzeBtn.disabled = true;
+  resultsDiv.style.display = 'none';
+  hideError();
+  dropZone.querySelector('.drop-title').textContent = 'Drop your manuscript here';
+  dropZone.querySelector('.drop-sub').innerHTML = 'Supports <strong>.docx</strong> files (Microsoft Word)<br>File is processed entirely in your browser — nothing is uploaded';
+});
+
+// ── Helpers ───────────────────────────────────
+function setProgress(show, label='', pct=0) {
+  progressWrap.style.display = show ? 'block' : 'none';
+  if (show) {
+    progressLabel.textContent = label;
+    progressFill.style.width  = pct + '%';
+  }
+}
+function showError(msg) {
+  errorBox.textContent = '⚠ ' + msg;
+  errorBox.style.display = 'block';
+}
+function hideError() {
+  errorBox.style.display = 'none';
+}
+</script>
+</body>
+</html>
