@@ -10,6 +10,8 @@
 > The tool runs entirely inside the browser; nothing is sent to any server.
 
 → **[Open ManuscriptMeter](https://praghav444.github.io/manuscript-meter/manuscript-stats.html)**
+*(Right-click → "Open in new tab" to keep this page open)*
+
 ---
 
 ## How it works for end users
