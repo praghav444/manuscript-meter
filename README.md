@@ -9,7 +9,7 @@
 > **Anyone can click the link below and use the tool immediately — no download, no install, no account.**
 > The tool runs entirely inside the browser; nothing is sent to any server.
 
-→ **[Open ManuscriptMeter](https://praghav444.github.io/manuscript-meter/manuscript-stats.html)**
+→ **<a href="https://praghav444.github.io/manuscript-meter/manuscript-stats.html" target="_blank">Open ManuscriptMeter</a>**
 
 ---
 
