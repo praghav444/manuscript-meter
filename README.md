@@ -1,6 +1,6 @@
 # ManuscriptMeter 📄
 
-**A free, privacy-first tool for computing journal submission statistics from Word manuscripts.**
+**A tool for computing journal submission statistics from Word manuscripts.**
 
 ---
 
