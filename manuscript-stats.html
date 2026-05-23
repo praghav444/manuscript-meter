@@ -1,0 +1,1245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ManuscriptMeter — Journal Submission Stats</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+  :root {
+    --ink:       #1a1a2e;
+    --paper:     #faf8f4;
+    --cream:     #f2ede3;
+    --rule:      #d6cfc0;
+    --accent:    #2d6a4f;
+    --accent2:   #b5451b;
+    --gold:      #c9a84c;
+    --muted:     #7a7265;
+    --card-bg:   #ffffff;
+    --shadow:    0 2px 16px rgba(26,26,46,0.07);
+    --radius:    6px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 300;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  header {
+    background: var(--ink);
+    color: var(--paper);
+    padding: 2rem 2.5rem 1.8rem;
+    position: relative;
+    overflow: hidden;
+  }
+  header::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent) 0%, var(--gold) 50%, var(--accent2) 100%);
+  }
+  .header-inner { max-width: 860px; margin: 0 auto; }
+  .logo { font-family: 'DM Serif Display', serif; font-size: 2rem; letter-spacing: -0.01em; line-height: 1; }
+  .logo span { color: var(--gold); font-style: italic; }
+  .tagline { font-size: 0.82rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--rule); margin-top: 0.35rem; }
+
+  .privacy-strip {
+    background: var(--accent);
+    color: #fff;
+    font-size: 0.76rem;
+    letter-spacing: 0.06em;
+    text-align: center;
+    padding: 0.45rem 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-weight: 500;
+  }
+  .privacy-strip svg { flex-shrink: 0; }
+
+  main { flex: 1; max-width: 860px; width: 100%; margin: 0 auto; padding: 2.5rem 1.5rem 4rem; }
+
+  .drop-zone {
+    border: 2px dashed var(--rule);
+    border-radius: var(--radius);
+    background: var(--card-bg);
+    padding: 3.5rem 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+  }
+  .drop-zone.dragover { border-color: var(--accent); background: #f0f7f3; }
+  .drop-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .drop-icon { width: 56px; height: 56px; margin: 0 auto 1.2rem; background: var(--cream); border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+  .drop-title { font-family: 'DM Serif Display', serif; font-size: 1.35rem; color: var(--ink); margin-bottom: 0.4rem; }
+  .drop-sub { font-size: 0.85rem; color: var(--muted); line-height: 1.5; }
+  .drop-sub strong { color: var(--ink); font-weight: 500; }
+  .browse-btn { display: inline-block; margin-top: 1.2rem; background: var(--ink); color: var(--paper); padding: 0.55rem 1.5rem; border-radius: 3px; font-size: 0.82rem; letter-spacing: 0.07em; text-transform: uppercase; font-weight: 500; pointer-events: none; }
+
+  .section-rule { display: flex; align-items: center; gap: 0.8rem; margin: 2.2rem 0 1.2rem; }
+  .section-rule span { font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); white-space: nowrap; font-weight: 500; }
+  .section-rule hr { flex: 1; border: none; border-top: 1px solid var(--rule); }
+
+  .exclusions { background: var(--card-bg); border: 1px solid var(--rule); border-radius: var(--radius); padding: 1.2rem 1.4rem; }
+  .excl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.6rem 1.2rem; margin-top: 0.7rem; }
+  .excl-item { display: flex; align-items: center; gap: 0.55rem; font-size: 0.85rem; color: var(--ink); cursor: pointer; }
+  .excl-item input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px; cursor: pointer; flex-shrink: 0; }
+  .excl-label { line-height: 1.3; }
+  .excl-label small { display: block; font-size: 0.73rem; color: var(--muted); }
+
+  .btn-analyze {
+    display: block; width: 100%; margin-top: 1.4rem; padding: 0.85rem 1rem;
+    background: var(--accent); color: #fff; font-family: 'DM Sans', sans-serif;
+    font-size: 0.9rem; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;
+    border: none; border-radius: var(--radius); cursor: pointer; transition: background 0.15s, opacity 0.15s;
+  }
+  .btn-analyze:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-analyze:not(:disabled):hover { background: #235c41; }
+
+  .progress-wrap { margin-top: 1.5rem; display: none; }
+  .progress-label { font-size: 0.8rem; color: var(--muted); margin-bottom: 0.4rem; font-family: 'DM Mono', monospace; }
+  .progress-bar-bg { height: 4px; background: var(--cream); border-radius: 2px; overflow: hidden; }
+  .progress-bar-fill { height: 100%; background: var(--accent); border-radius: 2px; width: 0%; transition: width 0.3s ease; }
+
+  #results { display: none; margin-top: 2rem; }
+
+  .filename-badge {
+    display: inline-flex; align-items: center; gap: 0.45rem;
+    background: var(--cream); border: 1px solid var(--rule); border-radius: 3px;
+    padding: 0.3rem 0.7rem; font-size: 0.78rem; color: var(--muted); font-family: 'DM Mono', monospace;
+    margin-bottom: 1.4rem; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+  @media (max-width: 600px) { .stats-grid { grid-template-columns: 1fr 1fr; } }
+
+  .stat-card { background: var(--card-bg); border: 1px solid var(--rule); border-radius: var(--radius); padding: 1.2rem 1rem 1rem; position: relative; overflow: hidden; }
+  .stat-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+  .stat-card.primary::before   { background: var(--accent); }
+  .stat-card.secondary::before { background: var(--accent2); }
+  .stat-card.tertiary::before  { background: var(--gold); }
+
+  .stat-value { font-family: 'DM Serif Display', serif; font-size: 2.4rem; line-height: 1; color: var(--ink); }
+  .stat-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-top: 0.3rem; font-weight: 500; }
+  .stat-note  { font-size: 0.72rem; color: var(--muted); margin-top: 0.55rem; line-height: 1.4; }
+
+  .detail-box { background: var(--card-bg); border: 1px solid var(--rule); border-radius: var(--radius); margin-top: 1rem; overflow: hidden; }
+  .detail-box summary { padding: 0.9rem 1.1rem; font-size: 0.82rem; font-weight: 500; color: var(--muted); cursor: pointer; letter-spacing: 0.05em; text-transform: uppercase; list-style: none; display: flex; align-items: center; justify-content: space-between; user-select: none; }
+  .detail-box summary::-webkit-details-marker { display: none; }
+  .detail-box[open] summary { border-bottom: 1px solid var(--rule); }
+  .detail-body { padding: 1rem 1.1rem; font-size: 0.84rem; }
+  .detail-row { display: flex; justify-content: space-between; align-items: baseline; padding: 0.35rem 0; border-bottom: 1px solid var(--cream); }
+  .detail-row:last-child { border-bottom: none; }
+  .detail-row .dr-label { color: var(--muted); }
+  .detail-row .dr-val   { font-family: 'DM Mono', monospace; font-size: 0.82rem; color: var(--ink); }
+  .dr-excluded { text-decoration: line-through; opacity: 0.5; }
+  .dr-section  { font-weight: 600; color: var(--ink) !important; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; margin-top: 0.3rem; }
+  .dr-divider  { border-top: 1px solid var(--rule); margin: 0.5rem 0; }
+
+  .diag-box { background: #f8f8ff; border: 1px solid #d0d0e8; border-radius: var(--radius); margin-top: 0.8rem; overflow: hidden; }
+  .diag-box summary { padding: 0.7rem 1rem; font-size: 0.75rem; font-weight: 500; color: #555; cursor: pointer; letter-spacing: 0.06em; text-transform: uppercase; list-style: none; display: flex; align-items: center; justify-content: space-between; user-select: none; }
+  .diag-box summary::-webkit-details-marker { display: none; }
+  .diag-box[open] summary { border-bottom: 1px solid #d0d0e8; }
+  .diag-body { padding: 0.8rem 1rem; font-size: 0.76rem; color: #444; font-family: 'DM Mono', monospace; line-height: 1.7; }
+  .diag-body .dg-item { display: flex; gap: 0.5rem; }
+  .diag-body .dg-key  { color: #888; min-width: 180px; flex-shrink: 0; }
+  .diag-body .dg-val  { color: var(--ink); }
+
+  .warn-box  { background: #fffbf0; border: 1px solid #e8d5a0; border-radius: var(--radius); padding: 0.75rem 1rem; font-size: 0.78rem; color: #7a6000; margin-top: 0.8rem; line-height: 1.5; }
+  .warn-box strong { font-weight: 600; }
+  .warn-box ul { margin: 0.35rem 0 0 1.1rem; }
+  .warn-box li + li { margin-top: 0.2rem; }
+
+  .error-box { background: #fff5f2; border: 1px solid #f5c5b4; border-radius: var(--radius); padding: 1rem 1.2rem; font-size: 0.85rem; color: var(--accent2); margin-top: 1rem; display: none; }
+
+  .copy-row { display: flex; gap: 0.7rem; margin-top: 1.2rem; flex-wrap: wrap; }
+  .btn-copy  { padding: 0.5rem 1.1rem; background: transparent; border: 1px solid var(--rule); border-radius: 3px; font-size: 0.78rem; font-family: 'DM Sans', sans-serif; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink); cursor: pointer; transition: background 0.15s; }
+  .btn-copy:hover { background: var(--cream); }
+  .btn-reset { padding: 0.5rem 1.1rem; background: transparent; border: 1px solid var(--rule); border-radius: 3px; font-size: 0.78rem; font-family: 'DM Sans', sans-serif; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent2); cursor: pointer; transition: background 0.15s; }
+  .btn-reset:hover { background: #fdf0ec; }
+
+  footer { border-top: 1px solid var(--rule); padding: 1rem 2rem; font-size: 0.74rem; color: var(--muted); text-align: center; display: flex; align-items: center; justify-content: center; gap: 0.5rem; flex-wrap: wrap; }
+  footer a { color: var(--accent); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+
+  .chev { transition: transform 0.2s; }
+  details[open] .chev { transform: rotate(180deg); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="logo">Manuscript<span>Meter</span></div>
+    <div class="tagline">Journal Submission Statistics · v10 — Robust DOCX Parser</div>
+  </div>
+</header>
+
+<div class="privacy-strip">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+  Your file never leaves your device — all processing happens locally in your browser
+</div>
+
+<main>
+
+  <div class="drop-zone" id="dropZone">
+    <input type="file" id="fileInput" accept=".docx">
+    <div class="drop-icon">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2d6a4f" stroke-width="1.8">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <line x1="12" y1="18" x2="12" y2="12"/>
+        <line x1="9" y1="15" x2="15" y2="15"/>
+      </svg>
+    </div>
+    <div class="drop-title">Drop your manuscript here</div>
+    <div class="drop-sub">Supports <strong>.docx</strong> files (Microsoft Word)<br>File is processed entirely in your browser — nothing is uploaded</div>
+    <div class="browse-btn">Browse file</div>
+  </div>
+
+  <div class="section-rule"><hr><span>Exclude from word count</span><hr></div>
+  <div class="exclusions">
+    <div style="font-size:0.78rem;color:var(--muted);letter-spacing:0.05em;text-transform:uppercase;font-weight:500;">Select sections to exclude</div>
+    <div class="excl-grid">
+      <label class="excl-item"><input type="checkbox" id="excl-title" checked><span class="excl-label">Title<small>Document title / heading 1</small></span></label>
+      <label class="excl-item"><input type="checkbox" id="excl-abstract" checked><span class="excl-label">Abstract<small>Detected by "Abstract" heading</small></span></label>
+      <label class="excl-item"><input type="checkbox" id="excl-keywords" checked><span class="excl-label">Keywords<small>Lines starting with "Keywords:"</small></span></label>
+      <label class="excl-item"><input type="checkbox" id="excl-pls" checked><span class="excl-label">Plain-language summary / Key Points<small>PLS, Lay Summary, Key Points, Highlights</small></span></label>
+      <label class="excl-item"><input type="checkbox" id="excl-authors" checked><span class="excl-label">Author list &amp; affiliations<small>Lines after title before body</small></span></label>
+      <label class="excl-item"><input type="checkbox" id="excl-tables" checked><span class="excl-label">Tables<small>All table cell text</small></span></label>
+      <label class="excl-item"><input type="checkbox" id="excl-refs" checked><span class="excl-label">References / Bibliography<small>Detected by section heading</small></span></label>
+      <label class="excl-item"><input type="checkbox" id="excl-captions"><span class="excl-label">Figure &amp; table captions<small>Lines beginning "Figure" / "Table"</small></span></label>
+    </div>
+    <div style="font-size:0.78rem;color:var(--muted);letter-spacing:0.05em;text-transform:uppercase;font-weight:500;margin-top:1rem;padding-top:0.8rem;border-top:1px solid var(--rule);">End matter <span style="font-weight:300;text-transform:none;">(often excluded from journal word limits)</span></div>
+    <div class="excl-grid">
+      <label class="excl-item"><input type="checkbox" id="excl-ack"><span class="excl-label">Acknowledgements<small>Acknowledgement / Acknowledgment sections</small></span></label>
+      <label class="excl-item"><input type="checkbox" id="excl-avail"><span class="excl-label">Data &amp; Code Availability<small>Data / code / software availability statements</small></span></label>
+      <label class="excl-item"><input type="checkbox" id="excl-authcontrib"><span class="excl-label">Author Contributions<small>CRediT / author roles sections</small></span></label>
+      <label class="excl-item"><input type="checkbox" id="excl-decl"><span class="excl-label">Declarations<small>Competing interests, ethics, disclosures</small></span></label>
+      <label class="excl-item"><input type="checkbox" id="excl-funding"><span class="excl-label">Funding<small>Funding information / financial support</small></span></label>
+    </div>
+  </div>
+
+  <button class="btn-analyze" id="analyzeBtn" disabled>Analyse Manuscript</button>
+
+  <div class="progress-wrap" id="progressWrap">
+    <div class="progress-label" id="progressLabel">Reading file…</div>
+    <div class="progress-bar-bg"><div class="progress-bar-fill" id="progressFill"></div></div>
+  </div>
+
+  <div class="error-box" id="errorBox"></div>
+
+  <div id="results">
+    <div class="filename-badge" id="filenameBadge">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      <span id="filenameText"></span>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card primary">
+        <div class="stat-value" id="res-words">—</div>
+        <div class="stat-label">Words</div>
+        <div class="stat-note" id="res-words-note"></div>
+      </div>
+      <div class="stat-card secondary">
+        <div class="stat-value" id="res-tables">—</div>
+        <div class="stat-label">Tables</div>
+        <div class="stat-note" id="res-tables-note"></div>
+      </div>
+      <div class="stat-card tertiary">
+        <div class="stat-value" id="res-figures">—</div>
+        <div class="stat-label">Figures</div>
+        <div class="stat-note" id="res-figures-note"></div>
+      </div>
+    </div>
+
+    <div class="warn-box" id="warnBox" style="display:none"></div>
+
+    <details class="detail-box" id="detailBox">
+      <summary>
+        <span>Detailed word-count breakdown</span>
+        <svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+      </summary>
+      <div class="detail-body" id="detailBody"></div>
+    </details>
+
+    <details class="diag-box" id="diagBox">
+      <summary>
+        <span>Parser diagnostics</span>
+        <svg class="chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+      </summary>
+      <div class="diag-body" id="diagBody"></div>
+    </details>
+
+    <div class="copy-row">
+      <button class="btn-copy" id="btnCopy">Copy summary</button>
+      <button class="btn-reset" id="btnReset">Analyse another file</button>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+  100% client-side · no server · no data transmitted · open source ·
+  <a href="https://github.com" target="_blank" rel="noopener">GitHub</a>
+  · Free to use &amp; share
+</footer>
+
+<script>
+/* ================================================================
+   ManuscriptMeter v10 — Robust DOCX Parser
+   ================================================================
+   Bug fixes vs v2:
+   1. CRITICAL: countFigures was async but never awaited → "[object Promise]"
+   2. Figure deduplication: double-column layouts embed each figure twice
+      (via different rIds pointing to identical image files). We now
+      deduplicate by image file-size signature via JSZip metadata.
+   3. Figure captions with spaces inside the number ("Figure  4 .")
+      were missed by the old regex. New regex collapses whitespace first.
+   4. Tables inside text boxes and anchored frames are now counted.
+   5. Text boxes (txbxContent) properly separated: their paragraphs are
+      NOT re-added to the main body paragraph list (prevented double-
+      counting in the old code which both walked the body tree AND
+      queried txbxContent elements — the body walk already visits those
+      nodes when they are anchored in the body).
+   6. Improved author-block detection heuristic.
+   ================================================================ */
+
+const WNS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+
+// ── Keyword regexes ────────────────────────────────────────────────────────
+const ABSTRACT_KW      = /^\s*(abstract|graphical\s+abstract)\s*$/i;
+const PLS_KW           = /^\s*(plain[\s\-]?language\s+(summary|statement|abstract)|lay\s+(summary|abstract)|significance\s+statement|author\s+summary|key\s+points?|highlights?)\s*$/i;
+const KEYWORDS_LINE_RE = /^\s*(keywords?|key\s+words?|index\s+terms?)\s*[;:]/i;
+const KEYWORDS_HDG_RE  = /^\s*(keywords?|key\s+words?|index\s+terms?)\s*$/i;
+const REFS_KW     = /^\s*(references?|bibliography|works\s+cited|literature\s+cited|reference\s+list|citations?)\s*$/i;
+const HEADING_STYLE_RE = /^(heading\s*\d|title|h\d)$/i;
+
+// Common manuscript section headings — used as fallback heading detector
+// when the document uses non-standard / journal-specific heading styles
+const SECTION_KW = /^\s*(introduction|material[s]?\s+(and\s+)?method[s]?|method[s]?|methodology|experimental|result[s]?|discussion|conclusion[s]?|summary|acknowledgements?|acknowledgments?|data\s+availability|conflict[s]?\s+of\s+interest|author\s+contributions?|funding|supplementary|appendix)\s*$/i;
+
+// ── End-matter section keywords ───────────────────────────────────────────────
+const ACK_KW = /^\s*(acknowledgements?|acknowledgments?|thanks?)\s*$/i;
+
+// Availability statements — covers many journal-specific phrasings
+const AVAIL_KW = /^\s*(data\s+and\s+(source\s+)?code\s+(availability|access)(\s+statement)?|(source\s+)?code\s+and\s+data\s+(availability|access)(\s+statement)?|(source\s+)?code\s+(availability|access)(\s+statement)?|software\s+(availability|access)(\s+statement)?|data\s+(availability|access|sharing)(\s+statement)?|data\s+and\s+materials?\s+availability|availability\s+of\s+data(\s+and\s+(materials?|code))?|open\s+research|open\s+data)\s*$/i;
+
+const AUTH_CONTRIB_KW = /^\s*(author\s+contributions?|authors'\s+contributions?|authors'\s+roles?|credit\s+author\s+(statement|statement))\s*$/i;
+
+const DECL_KW = /^\s*(declarations?(\s+of\s+(interests?|competing\s+interests?))?|competing\s+interests?|conflict[s]?\s+of\s+interests?|financial\s+disclosures?|ethics\s+(statement|approval|declaration)|interest\s+statement|disclosures?)\s*$/i;
+
+const FUNDING_KW = /^\s*(funding(\s+(information|sources?|statement|acknowledgements?))?|financial\s+support|grant[s]?\s+support)\s*$/i;
+
+// Figure/table caption: "Figure 1", "Fig. 2", "Figure  3 .", "Table S1" etc.
+// We normalise the paragraph text (collapse internal whitespace) before testing.
+const FIGURE_CAPTION_RE  = /^fig(?:ure|\.?)\s*[s\-]?\s*\d+[a-z]?\s*[.:\u2013\u2014-]/i;
+const TABLE_CAPTION_RE   = /^table\s*[s\-]?\s*\d+[a-z]?\s*[.:\u2013\u2014-]/i;
+// For extracting the unique figure number from a caption
+const FIGURE_NUMBER_RE   = /^fig(?:ure|\.?)\.?\s*([s\-]?\s*\d+[a-z]?)/i;
+
+// ── Flexible end-matter section detector ─────────────────────────────────────
+// Detects end-matter headings by context rather than exact phrase matching.
+// Only fires for short paragraphs (< 150 chars) that do not end with sentence
+// punctuation — i.e. they look like headings, not body text sentences.
+// This handles the many journal-specific phrasings that differ from the
+// canonical regex patterns (e.g. "Data and source code availability statement"
+// vs "Data availability" vs "Availability of data and materials").
+function detectEndMatterType(txt) {
+  // Only consider short paragraphs without trailing sentence punctuation —
+  // these are headings, not body text. 100-char cap catches all real headings
+  // while excluding body sentences (which are almost always longer).
+  if (!txt || txt.length > 100 || /[.!?;]\s*$/.test(txt)) return null;
+
+  // Normalise: collapse whitespace then strip a trailing colon.
+  // Many informal / poorly-formatted headings use inline bold + colon style
+  // e.g. "Funding:", "Decalarations:", "Author contributions:" — stripping the
+  // colon lets the keyword patterns below match cleanly.
+  const t = txt.toLowerCase().replace(/\s+/g, ' ').replace(/\s*:\s*$/, '').trim();
+  if (!t) return null;
+
+  // Acknowledgements — any short heading containing "acknowledg"
+  if (/\backnowledg/.test(t)) return 'ack';
+
+  // Data / Code / Software availability
+  // Use "availabilit" (noun) not "availab" (which also matches adjective "available")
+  const hasAvail = /\bavailabilit|\bdata\s+access\b|\bdata\s+sharing\b/.test(t);
+  const hasSubj  = /\b(data|code|software|source)\b/.test(t);
+  if (hasAvail && hasSubj) return 'avail';
+  if (/\bopen\s+(?:research|data|science)\b/.test(t)) return 'avail';
+
+  // Author contributions
+  if (/\bauthor.{0,30}contrib/.test(t) ||
+      /\bauthor.{0,15}(?:roles?|statement)/.test(t) ||
+      /\bcontrib.{0,20}author/.test(t) ||
+      /\bcredit\s+author/.test(t)) return 'authContrib';
+
+  // Declarations / Competing interests / Ethics
+  // Fuzzy pattern \bdec[la]{1,4}ar(?:ation|at)\w* handles both the correct
+  // spelling ("declarations" → dec+l+ar+ations) AND common misspellings such as
+  // "Decalarations" (dec+al+ar+ations) by allowing 1–4 chars from [la] between
+  // "dec" and "ar". The strict \bdeclar pattern is kept as the primary check.
+  if (/\bdeclar(?:ation)?s?\b/.test(t) ||
+      /\bdec[la]{1,4}ar(?:ation|at)\w*\b/.test(t) ||
+      /\b(?:competing|conflict).{0,20}\binterest/.test(t) ||
+      /\binterest.{0,20}(?:competing|conflict)/.test(t) ||
+      /\bdisclosur/.test(t) ||
+      /\bethics\s+(?:statement|approv|declar)/.test(t)) return 'decl';
+
+  // Funding — also catches "Funding:" (colon already stripped above)
+  if (/^funding\b/.test(t) ||
+      /\bfunding\s+(?:information|sources?|statement|acknowledgement)/.test(t) ||
+      /\bfinancial\s+support/.test(t)) return 'funding';
+
+  return null;
+}
+
+// ── DOM references ──────────────────────────────────────────────────────────
+const dropZone     = document.getElementById('dropZone');
+const fileInput    = document.getElementById('fileInput');
+const analyzeBtn   = document.getElementById('analyzeBtn');
+const progressWrap = document.getElementById('progressWrap');
+const progressFill = document.getElementById('progressFill');
+const progressLabel= document.getElementById('progressLabel');
+const resultsDiv   = document.getElementById('results');
+const errorBox     = document.getElementById('errorBox');
+const warnBox      = document.getElementById('warnBox');
+let selectedFile   = null;
+
+// ── File selection ──────────────────────────────────────────────────────────
+fileInput.addEventListener('change', e => { if (e.target.files[0]) pickFile(e.target.files[0]); });
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('dragover');
+  const f = e.dataTransfer.files[0]; if (f) pickFile(f);
+});
+function pickFile(f) {
+  if (!f.name.match(/\.docx$/i)) { showError('Please upload a .docx (Word) file.'); return; }
+  selectedFile = f;
+  analyzeBtn.disabled = false;
+  hideError();
+  resultsDiv.style.display = 'none';
+  dropZone.querySelector('.drop-title').textContent = f.name;
+  dropZone.querySelector('.drop-sub').textContent = `${(f.size/1024).toFixed(1)} KB · ready to analyse`;
+}
+
+// ── Analyse ─────────────────────────────────────────────────────────────────
+analyzeBtn.addEventListener('click', async () => {
+  if (!selectedFile) return;
+  hideError(); warnBox.style.display = 'none';
+  resultsDiv.style.display = 'none';
+  setProgress(true, 'Reading file…', 10);
+  try {
+    const stats = await analyseDocx(selectedFile);
+    setProgress(false);
+    showResults(stats, selectedFile.name);
+  } catch(err) {
+    setProgress(false);
+    showError('Could not parse file: ' + err.message);
+    console.error(err);
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+//  MAIN PARSER
+// ════════════════════════════════════════════════════════════════════════════
+async function analyseDocx(file) {
+  const arrayBuffer = await file.arrayBuffer();
+
+  setProgress(true, 'Unzipping document…', 20);
+  const zip = await JSZip.loadAsync(arrayBuffer);
+
+  setProgress(true, 'Loading document XML…', 35);
+  const readZip = async (path) => {
+    const f = zip.file(path);
+    return f ? f.async('string') : '';
+  };
+  const docXml      = await readZip('word/document.xml');
+  const stylesXml   = await readZip('word/styles.xml');
+  const relsXml     = await readZip('word/_rels/document.xml.rels');
+  const footnotesXml= await readZip('word/footnotes.xml');
+  const endnotesXml = await readZip('word/endnotes.xml');
+
+  setProgress(true, 'Parsing styles…', 50);
+  const parser   = new DOMParser();
+  const xmlDoc   = parser.parseFromString(docXml,  'text/xml');
+  const stylesDoc= stylesXml ? parser.parseFromString(stylesXml,'text/xml') : null;
+  const relsDoc  = relsXml   ? parser.parseFromString(relsXml,  'text/xml') : null;
+
+  // Build style lookup
+  const styleMap = buildStyleMap(stylesDoc);
+
+  setProgress(true, 'Counting tables & figures…', 65);
+  // FIX #1: countFigures is async — MUST be awaited
+  const { tableCount, tableDiag } = countTables(xmlDoc);
+  const { figureCount, figureDiag } = await countFigures(xmlDoc, relsDoc, zip);
+
+  setProgress(true, 'Counting words…', 80);
+  const wordStats = extractWordStats(xmlDoc, styleMap);
+
+  setProgress(true, 'Finalising…', 95);
+  const result = applyExclusions(wordStats, tableCount, figureCount);
+  result.diag = { ...tableDiag, ...figureDiag };
+  return result;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  STYLE MAP
+// ════════════════════════════════════════════════════════════════════════════
+function buildStyleMap(stylesDoc) {
+  const map = {};
+  if (!stylesDoc) return map;
+  const styles = stylesDoc.getElementsByTagNameNS(WNS, 'style');
+  for (const s of styles) {
+    const id     = s.getAttributeNS(WNS,'styleId') || s.getAttribute('w:styleId') || '';
+    const nameEl = s.getElementsByTagNameNS(WNS,'name')[0];
+    const baseEl = s.getElementsByTagNameNS(WNS,'basedOn')[0];
+    const name   = nameEl ? (nameEl.getAttributeNS(WNS,'val') || nameEl.getAttribute('w:val') || '').toLowerCase() : '';
+    const base   = baseEl ? (baseEl.getAttributeNS(WNS,'val') || baseEl.getAttribute('w:val') || '') : '';
+    map[id] = { name, base };
+  }
+  // Resolve isHeading transitively
+  function isHeading(id, seen = new Set()) {
+    if (!id || seen.has(id)) return false;
+    seen.add(id);
+    const s = map[id];
+    if (!s) return false;
+    if (HEADING_STYLE_RE.test(s.name) || s.name.startsWith('heading')) return true;
+    return isHeading(s.base, seen);
+  }
+  for (const id of Object.keys(map)) map[id].isHeading = isHeading(id);
+  return map;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  TABLE COUNTING
+//  Counts all "data tables" regardless of where they live in the document
+//  (body, text boxes, anchored frames). Skips nested tables (tables inside
+//  table cells) to avoid double-counting. Also skips single-row/single-cell
+//  layout tables only when they contain no header row indicators.
+// ════════════════════════════════════════════════════════════════════════════
+function countTables(xmlDoc) {
+  const allTbls = Array.from(xmlDoc.getElementsByTagNameNS(WNS, 'tbl'));
+
+  // A table is "nested" if any of its ancestors is also a w:tbl
+  function isNested(tbl) {
+    let node = tbl.parentNode;
+    while (node) {
+      if (node.localName === 'tbl') return true;
+      node = node.parentNode;
+    }
+    return false;
+  }
+
+  // A table is a pure layout table if it has exactly 1 row and 1 cell
+  // (common for wrapping images or text in single-cell boxes)
+  function isLayoutTable(tbl) {
+    const rows = tbl.getElementsByTagNameNS(WNS, 'tr');
+    if (rows.length !== 1) return false;
+    const cells = rows[0].getElementsByTagNameNS(WNS, 'tc');
+    return cells.length === 1;
+  }
+
+  let count = 0;
+  const diag = { tablesTotal: 0, tablesNested: 0, tablesLayout: 0, tablesCounted: 0 };
+
+  for (const tbl of allTbls) {
+    diag.tablesTotal++;
+    if (isNested(tbl))     { diag.tablesNested++; continue; }
+    if (isLayoutTable(tbl)){ diag.tablesLayout++; continue; }
+    count++;
+  }
+  diag.tablesCounted = count;
+  return { tableCount: count, tableDiag: diag };
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  FIGURE COUNTING  (async — must be awaited by caller)
+//
+//  Strategy (three-pronged, best result wins):
+//
+//  A) Caption-based: scan ALL paragraphs (including those inside tables,
+//     text boxes, and anchored frames) for caption-style text matching
+//     "Figure N" / "Fig. N" etc. Extract unique figure numbers.
+//     This is the most robust method when captions are present.
+//
+//  B) Image-file deduplication: read image file sizes from the JSZip
+//     archive. In double-column layouts the same image is often embedded
+//     twice with two different rIds but the same file bytes. Grouping by
+//     (file size) collapses duplicates. Count unique size-groups that are
+//     actually referenced from the document XML.
+//
+//  C) Unique rId count: simple fallback — count unique r:embed / r:link
+//     IDs that resolve to image relationships in the rels file.
+//
+//  Return: max(A, B) when A > 0, else B, with C as emergency fallback.
+// ════════════════════════════════════════════════════════════════════════════
+async function countFigures(xmlDoc, relsDoc, zip) {
+  const diag = {};
+
+  // ── A: Caption-based counting ──────────────────────────────────────────
+  const allParas = Array.from(xmlDoc.getElementsByTagNameNS(WNS, 'p'));
+  const figureNumbers = new Set();
+  for (const p of allParas) {
+    // Collapse all whitespace within the paragraph text before matching
+    const raw = getParaText(p);
+    const txt = raw.replace(/\s+/g, ' ').trim();
+    if (!txt) continue;
+    // FIX: only extract figure number when the paragraph is an actual caption
+    // (has a separator like ":" or "." after the number). This prevents body-text
+    // references like "Figure 2 shows..." from being counted as captions.
+    if (FIGURE_CAPTION_RE.test(txt)) {
+      const m = txt.match(FIGURE_NUMBER_RE);
+      if (m) {
+        // Normalise: remove internal spaces so "S 1" and "S1" are the same
+        figureNumbers.add(m[1].replace(/\s+/g, '').toLowerCase());
+      }
+    }
+  }
+  diag.figCaptionCount  = figureNumbers.size;
+  diag.figCaptionLabels = [...figureNumbers].join(', ') || '—';
+
+  // ── Build rId → target map from rels ──────────────────────────────────
+  const rIdToTarget = {};   // rId → "media/imageN.png"
+  if (relsDoc) {
+    const rels = Array.from(
+      relsDoc.querySelectorAll
+        ? relsDoc.querySelectorAll('Relationship')
+        : relsDoc.getElementsByTagName('Relationship')
+    );
+    for (const r of rels) {
+      if ((r.getAttribute('Type') || '').includes('/image')) {
+        const id  = r.getAttribute('Id');
+        const tgt = r.getAttribute('Target');
+        if (id && tgt) rIdToTarget[id] = tgt;
+      }
+    }
+  }
+
+  // ── Collect all r:embed / r:link IDs used in document XML ─────────────
+  const docStr    = new XMLSerializer().serializeToString(xmlDoc);
+  const usedRIds  = new Set();
+  let m2;
+  const embedRe = /r:embed="([^"]+)"/g;
+  const linkRe  = /r:link="([^"]+)"/g;
+  while ((m2 = embedRe.exec(docStr)) !== null) usedRIds.add(m2[1]);
+  while ((m2 = linkRe.exec(docStr))  !== null) usedRIds.add(m2[1]);
+
+  // Filter to only image rIds
+  const usedImageRIds = [...usedRIds].filter(id => rIdToTarget[id]);
+  diag.rawImageRIdCount = usedImageRIds.length;
+
+  // ── B: File-size deduplication ─────────────────────────────────────────
+  // FIX #2: In double-column layouts, the same image is embedded twice.
+  // Two different rIds may point to different filenames, but those files
+  // contain identical bytes. We group by file size (a cheap proxy for
+  // identity). Groups of size ≥2 with identical sizes are collapsed to 1.
+  const sizeGroups = {};   // fileSize → Set of rIds
+  for (const rId of usedImageRIds) {
+    const target = rIdToTarget[rId];
+    const fullPath = target.startsWith('word/') ? target : `word/${target}`;
+    const entry = zip.file(fullPath) || zip.file(target);
+    if (entry) {
+      const sz = entry._data ? entry._data.uncompressedSize : (entry.comment ? -1 : -2);
+      // JSZip stores uncompressed size in _data; if unavailable fall back to name grouping
+      const key = sz > 0 ? sz : target;
+      if (!sizeGroups[key]) sizeGroups[key] = new Set();
+      sizeGroups[key].add(rId);
+    } else {
+      // File not found in zip — count it individually
+      if (!sizeGroups['__missing__' + rId]) sizeGroups['__missing__' + rId] = new Set();
+      sizeGroups['__missing__' + rId].add(rId);
+    }
+  }
+  const dedupImageCount = Object.keys(sizeGroups).length;
+  diag.dedupImageCount = dedupImageCount;
+
+  // ── C: Raw unique rId count (fallback) ────────────────────────────────
+  diag.rawUniqueRIdCount = usedImageRIds.length;
+
+  // ── Decide best count ──────────────────────────────────────────────────
+  // Caption count is ground truth when captions exist.
+  // Otherwise use deduped image count; fall back to raw rId count.
+  let figureCount;
+  let method;
+  if (figureNumbers.size > 0) {
+    figureCount = figureNumbers.size;
+    method = 'caption-based (unique figure numbers)';
+  } else if (dedupImageCount > 0) {
+    figureCount = dedupImageCount;
+    method = 'image dedup (by file size)';
+  } else {
+    figureCount = usedImageRIds.length;
+    method = 'raw rId count (fallback)';
+  }
+  diag.figureCountMethod = method;
+
+  return { figureCount, figureDiag: diag };
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  WORD EXTRACTION
+//
+//  v3 changes:
+//  - Properly collect paragraphs from ALL document locations in document
+//    order: body paragraphs, paragraphs in text boxes anchored to the body,
+//    and paragraphs in headers/footers are excluded (not part of manuscript).
+//  - FIX #5: text boxes were being double-counted. The body walk already
+//    encounters txbxContent nodes (they are children of drawing elements
+//    which are children of body paragraphs). We mark them during the walk.
+//  - Inserted (tracked-changes) text is included; deleted text excluded.
+//  - Words inside deleted runs (w:del) are not counted.
+// ════════════════════════════════════════════════════════════════════════════
+function extractWordStats(xmlDoc, styleMap) {
+  const body = xmlDoc.getElementsByTagNameNS(WNS, 'body')[0];
+  if (!body) throw new Error('No document body found in XML.');
+
+  // ── Pass 1: separate table paragraphs from body paragraphs ─────────────
+  // Walk body top-down. When we hit a w:tbl, collect all its paragraphs as
+  // "table" content. Everything else at body level is "body" content.
+  const bodyItems  = [];   // { text, styleId, node }
+  const tableItems = [];   // { text }
+  // Track which paragraph nodes are inside tables (to avoid re-adding below)
+  const tableParaSet = new Set();
+
+  function walkBodyLevel(node) {
+    if (node.nodeType !== 1) return;
+    const ln = node.localName;
+    if (ln === 'tbl') {
+      const cellParas = node.getElementsByTagNameNS(WNS, 'p');
+      for (const cp of cellParas) {
+        tableParaSet.add(cp);
+        const txt = getParaText(cp);
+        if (txt.trim()) tableItems.push({ text: txt });
+      }
+      return; // don't recurse further into tables
+    }
+    if (ln === 'p') {
+      if (!tableParaSet.has(node)) {
+        bodyItems.push({ text: getParaText(node), styleId: getParagraphStyleId(node), node });
+      }
+      return;
+    }
+    // For other elements (sectPr, sdt, etc.), recurse
+    for (const child of node.childNodes) walkBodyLevel(child);
+  }
+  for (const child of body.childNodes) walkBodyLevel(child);
+
+  // ── Paragraph text normaliser ─────────────────────────────────────────
+  // Collapses internal whitespace for reliable regex matching
+  const norm = txt => txt.replace(/\s+/g, ' ').trim();
+
+  // ── Classify body paragraphs ───────────────────────────────────────────
+  const excl = getExclusionSettings();
+  let titleWords = 0, abstractWords = 0, keywordWords = 0, plsWords = 0,
+      authorWords = 0, refWords = 0, captionWords = 0, bodyWords = 0,
+      ackWords = 0, availWords = 0, authContribWords = 0, declWords = 0, fundingWords = 0;
+  let titleFound = false, inAbstract = false, inPLS = false, inRefs = false,
+      inAck = false, inAvail = false, inAuthContrib = false, inDecl = false, inFunding = false;
+  let authorBlockActive = false, authorBlockDone = false;
+  let abstractStyleId = null, plsStyleId = null, refsStyleId = null,
+      ackStyleId = null, availStyleId = null, authContribStyleId = null,
+      declStyleId = null, fundingStyleId = null;
+  const warnings = [];
+
+  for (let i = 0; i < bodyItems.length; i++) {
+    const { text, styleId } = bodyItems[i];
+    const ntxt = norm(text);
+    if (!ntxt) continue;
+    const wc = countWords(ntxt);
+
+    const sid      = styleId || '';
+    const sInfo    = styleMap[sid] || { name: sid.toLowerCase(), isHeading: false };
+    const styleName= sInfo.name;
+    const isHeadEl = sInfo.isHeading || HEADING_STYLE_RE.test(sid) || HEADING_STYLE_RE.test(styleName);
+
+    // ntxtNoSp: all whitespace removed — matches "A BSTRACT", "I ntroduction", etc.
+    const ntxtNoSp = ntxt.replace(/\s+/g, '');
+
+    const isAbstractKw    = ABSTRACT_KW.test(ntxt)       || ABSTRACT_KW.test(ntxtNoSp);
+    const isPlsKw         = PLS_KW.test(ntxt)            || PLS_KW.test(ntxtNoSp);
+    const isKeywordLine   = KEYWORDS_LINE_RE.test(ntxt);
+    const isKeywordHdg    = KEYWORDS_HDG_RE.test(ntxt)   || KEYWORDS_HDG_RE.test(ntxtNoSp);
+    const isRefsKw        = REFS_KW.test(ntxt)           || REFS_KW.test(ntxtNoSp);
+    // Flexible context-aware end-matter detection (handles journal-specific phrasing)
+    const endMatterType   = detectEndMatterType(ntxt) || detectEndMatterType(ntxtNoSp);
+
+    const isAckKw         = ACK_KW.test(ntxt)            || ACK_KW.test(ntxtNoSp)            || endMatterType === 'ack';
+    const isAvailKw       = AVAIL_KW.test(ntxt)          || AVAIL_KW.test(ntxtNoSp)          || endMatterType === 'avail';
+    const isAuthContribKw = AUTH_CONTRIB_KW.test(ntxt)   || AUTH_CONTRIB_KW.test(ntxtNoSp)   || endMatterType === 'authContrib';
+    const isDeclKw        = DECL_KW.test(ntxt)           || DECL_KW.test(ntxtNoSp)           || endMatterType === 'decl';
+    const isFundingKw     = FUNDING_KW.test(ntxt)        || FUNDING_KW.test(ntxtNoSp)        || endMatterType === 'funding';
+    const isFigCaption    = FIGURE_CAPTION_RE.test(ntxt);
+    const isTblCaption    = TABLE_CAPTION_RE.test(ntxt);
+    const isCaptionLine   = isFigCaption || isTblCaption;
+
+    // Any recognised section-opening keyword — used to end in-progress sections
+    const isAnySectionKw = isAbstractKw || isPlsKw || isKeywordHdg || isRefsKw
+        || isAckKw || isAvailKw || isAuthContribKw || isDeclKw || isFundingKw
+        || SECTION_KW.test(ntxt) || SECTION_KW.test(ntxtNoSp);
+
+    // Section-break detector.
+    // FIX: same-style boundary only fires for short paragraphs without trailing
+    // sentence punctuation. This prevents single-sentence content paragraphs
+    // (e.g. a one-line acknowledgment) that share the heading style from
+    // incorrectly ending the section they belong to.
+    function isSectionBoundary(openStyleId, openKwTest) {
+      const looksLikeHeading = ntxt.length < 100 && !/[.!?;]\s*$/.test(ntxt);
+      if (openStyleId && sid === openStyleId && !openKwTest && looksLikeHeading) return true;
+      if (isHeadEl && !openKwTest) return true;
+      if (isAnySectionKw && !openKwTest) return true;
+      return false;
+    }
+
+    // ── Title ─────────────────────────────────────────────────────────────
+    if (!titleFound) {
+      const looksLike =
+        styleName === 'title'
+        || (isHeadEl && /^(title|heading\s*1)$/.test(styleName))
+        || (i === 0 && ntxt.length < 300 && !/[.?!]\s*$/.test(ntxt))
+        || (i <= 1 && isHeadEl);
+      if (looksLike) { titleFound = true; titleWords += wc; continue; }
+    }
+
+    // ── Keywords (inline line or standalone heading) ───────────────────────
+    // Must be tested BEFORE abstract/PLS so a "Keywords:" line inside the
+    // abstract block is correctly peeled off into its own bucket.
+    if (isKeywordLine || (isKeywordHdg && (isHeadEl || ntxt.length < 40))) {
+      inAbstract = false; inPLS = false;
+      authorBlockDone = true;
+      keywordWords += wc; continue;
+    }
+
+    // ── Abstract ──────────────────────────────────────────────────────────
+    if (isAbstractKw && (isHeadEl || ntxt.length < 60)) {
+      inAbstract = true; inPLS = false; inRefs = false;
+      abstractStyleId = sid || null;
+      authorBlockDone = true; authorBlockActive = false;
+      abstractWords += wc; continue;
+    }
+    if (styleName === 'abstract' || sid.toLowerCase() === 'abstract') {
+      inAbstract = true; inPLS = false; inRefs = false;
+      abstractStyleId = sid || null;
+      authorBlockDone = true; authorBlockActive = false;
+      abstractWords += wc; continue;
+    }
+    if (inAbstract) {
+      if (isSectionBoundary(abstractStyleId, isAbstractKw)) { inAbstract = false; }
+      else { abstractWords += wc; continue; }
+    }
+
+    // ── PLS / Key Points / Highlights ─────────────────────────────────────
+    if (isPlsKw && (isHeadEl || ntxt.length < 80)) {
+      inPLS = true; inAbstract = false; inRefs = false;
+      plsStyleId = sid || null;
+      authorBlockDone = true; authorBlockActive = false;
+      plsWords += wc; continue;
+    }
+    if (inPLS) {
+      if (isSectionBoundary(plsStyleId, isPlsKw)) { inPLS = false; }
+      else { plsWords += wc; continue; }
+    }
+
+    // ── References ────────────────────────────────────────────────────────
+    if (isRefsKw && (isHeadEl || ntxt.length < 50)) {
+      inRefs = true; inAbstract = false; inPLS = false;
+      inAck = false; inAvail = false; inAuthContrib = false; inDecl = false; inFunding = false;
+      refsStyleId = sid || null;
+      refWords += wc; continue;
+    }
+    if (inRefs) {
+      // End refs if a post-reference end-matter section begins
+      if (isSectionBoundary(refsStyleId, isRefsKw)) { inRefs = false; }
+      else { refWords += wc; continue; }
+    }
+
+    // ── Acknowledgements ─────────────────────────────────────────────────
+    if (isAckKw && (isHeadEl || ntxt.length < 80)) {
+      inAck = true; inRefs = false; inAvail = false; inAuthContrib = false; inDecl = false; inFunding = false;
+      ackStyleId = sid || null;
+      authorBlockDone = true;
+      ackWords += wc; continue;
+    }
+    if (inAck) {
+      if (isSectionBoundary(ackStyleId, isAckKw)) { inAck = false; }
+      else { ackWords += wc; continue; }
+    }
+
+    // ── Data & Code Availability ──────────────────────────────────────────
+    if (isAvailKw && (isHeadEl || ntxt.length < 100)) {
+      inAvail = true; inAck = false; inRefs = false; inAuthContrib = false; inDecl = false; inFunding = false;
+      availStyleId = sid || null;
+      authorBlockDone = true;
+      availWords += wc; continue;
+    }
+    if (inAvail) {
+      if (isSectionBoundary(availStyleId, isAvailKw)) { inAvail = false; }
+      else { availWords += wc; continue; }
+    }
+
+    // ── Author Contributions ──────────────────────────────────────────────
+    if (isAuthContribKw && (isHeadEl || ntxt.length < 80)) {
+      inAuthContrib = true; inAck = false; inAvail = false; inRefs = false; inDecl = false; inFunding = false;
+      authContribStyleId = sid || null;
+      authorBlockDone = true;
+      authContribWords += wc; continue;
+    }
+    if (inAuthContrib) {
+      if (isSectionBoundary(authContribStyleId, isAuthContribKw)) { inAuthContrib = false; }
+      else { authContribWords += wc; continue; }
+    }
+
+    // ── Declarations / Competing Interests ────────────────────────────────
+    if (isDeclKw && (isHeadEl || ntxt.length < 80)) {
+      inDecl = true; inAck = false; inAvail = false; inAuthContrib = false; inRefs = false; inFunding = false;
+      declStyleId = sid || null;
+      authorBlockDone = true;
+      declWords += wc; continue;
+    }
+    if (inDecl) {
+      if (isSectionBoundary(declStyleId, isDeclKw)) { inDecl = false; }
+      else { declWords += wc; continue; }
+    }
+
+    // ── Funding ───────────────────────────────────────────────────────────
+    if (isFundingKw && (isHeadEl || ntxt.length < 80)) {
+      inFunding = true; inAck = false; inAvail = false; inAuthContrib = false; inDecl = false; inRefs = false;
+      fundingStyleId = sid || null;
+      authorBlockDone = true;
+      fundingWords += wc; continue;
+    }
+    if (inFunding) {
+      if (isSectionBoundary(fundingStyleId, isFundingKw)) { inFunding = false; }
+      else { fundingWords += wc; continue; }
+    }
+
+    // ── Author block ──────────────────────────────────────────────────────
+    // Criteria: after title, before any heading/abstract, short lines with
+    // names / affiliations / emails / ORCIDs.
+    if (titleFound && !authorBlockDone && !inAbstract && !inRefs) {
+      if (isHeadEl) {
+        authorBlockDone = true;
+        // fall through to heading handling
+      } else {
+        const isEmail    = /@/.test(ntxt);
+        const isOrcid    = /orcid\.org/i.test(ntxt);
+        const isAffil    = /\b(university|institute|department|school|college|hospital|center|centre|laborator|faculty)\b/i.test(ntxt);
+        const isShort    = ntxt.length < 250;
+        const noSentEnd  = !/[.!?]\s*$/.test(ntxt) || isAffil;
+        const hasNumber  = /^\d+\s/.test(ntxt) || /\d{4,}/.test(ntxt); // affil superscripts
+        if (isShort && (noSentEnd || isEmail || isOrcid || isAffil || hasNumber)) {
+          authorWords += wc;
+          authorBlockActive = true;
+          continue;
+        }
+        if (authorBlockActive && !isShort) authorBlockDone = true;
+      }
+    }
+
+    // ── Figure / table captions ───────────────────────────────────────────
+    if (isCaptionLine || styleName === 'caption') {
+      captionWords += wc; continue;
+    }
+
+    bodyWords += wc;
+  }
+
+  // Warnings
+  if (!titleFound)
+    warnings.push('Title could not be auto-detected. The first paragraph was treated as body text.');
+  if (!inAbstract && abstractWords === 0)
+    warnings.push('No abstract / plain-language summary section was detected. If your document has one, make sure it uses a heading keyword (e.g. "Abstract").');
+
+  // ── txbxContent pass ────────────────────────────────────────────────────────
+  // getParaText() skips txbxContent to prevent figure captions inflating the
+  // enclosing body paragraph. Here we process text boxes explicitly:
+  //   • Image-containing text boxes  →  caption words
+  //   • Plain text boxes (no images) →  body words
+  //
+  // Deduplication: two-column layouts embed each figure twice (one text box per
+  // column). We fingerprint the first 80 chars of each box's combined text and
+  // skip duplicates so captions are counted exactly once.
+  {
+    const allTxbxBlocks = Array.from(xmlDoc.getElementsByTagNameNS(WNS, 'txbxContent'));
+    const seenFingerprints = new Set();
+
+    for (const txbx of allTxbxBlocks) {
+      const txbxStr    = new XMLSerializer().serializeToString(txbx);
+      const isImageTxbx = txbxStr.includes('r:embed=');
+
+      // Collect text from all paragraphs inside this text box
+      const innerParas  = Array.from(txbx.getElementsByTagNameNS(WNS, 'p'));
+      const combinedText = innerParas
+        .map(p => getParaText(p).replace(/\s+/g, ' ').trim())
+        .filter(Boolean)
+        .join(' ');
+
+      if (!combinedText) continue;
+
+      // Deduplicate via 80-char lowercase fingerprint
+      const fp = combinedText.toLowerCase().slice(0, 80);
+      if (seenFingerprints.has(fp)) continue;
+      seenFingerprints.add(fp);
+
+      const wc = countWords(combinedText);
+      if (isImageTxbx) {
+        captionWords += wc;   // figure caption / in-box annotation
+      } else {
+        bodyWords    += wc;   // callout box, sidebar, etc.
+      }
+    }
+  }
+
+  // ── Table word total ──────────────────────────────────────────────────
+  const tableWordTotal = tableItems.reduce((s, it) => s + countWords(it.text), 0);
+
+  return {
+    body: bodyWords,
+    title: titleWords,
+    abstract: abstractWords,
+    keywords: keywordWords,
+    pls: plsWords,
+    authors: authorWords,
+    tables: tableWordTotal,
+    refs: refWords,
+    captions: captionWords,
+    ack: ackWords,
+    avail: availWords,
+    authContrib: authContribWords,
+    decl: declWords,
+    funding: fundingWords,
+    warnings,
+    totalBodyParas: bodyItems.length,
+    totalTableParas: tableItems.length,
+  };
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  APPLY EXCLUSIONS
+// ════════════════════════════════════════════════════════════════════════════
+function applyExclusions(breakdown, tableCount, figureCount) {
+  const excl  = getExclusionSettings();
+  const total = breakdown.body + breakdown.title + breakdown.abstract
+              + breakdown.keywords + breakdown.pls
+              + breakdown.authors + breakdown.tables + breakdown.refs + breakdown.captions
+              + breakdown.ack + breakdown.avail + breakdown.authContrib
+              + breakdown.decl + breakdown.funding;
+
+  let excluded = 0;
+  const exclMap = {};
+  if (excl.title)      { excluded += breakdown.title;      exclMap['Title']            = breakdown.title; }
+  if (excl.abstract)   { excluded += breakdown.abstract;   exclMap['Abstract']         = breakdown.abstract; }
+  if (excl.keywords)   { excluded += breakdown.keywords;   exclMap['Keywords']         = breakdown.keywords; }
+  if (excl.pls)        { excluded += breakdown.pls;        exclMap['PLS / Key Points'] = breakdown.pls; }
+  if (excl.authors)    { excluded += breakdown.authors;    exclMap['Author list']      = breakdown.authors; }
+  if (excl.tables)     { excluded += breakdown.tables;     exclMap['Tables']           = breakdown.tables; }
+  if (excl.refs)       { excluded += breakdown.refs;       exclMap['References']       = breakdown.refs; }
+  if (excl.captions)   { excluded += breakdown.captions;   exclMap['Fig captions']     = breakdown.captions; }
+  if (excl.ack)        { excluded += breakdown.ack;        exclMap['Acknowledgements'] = breakdown.ack; }
+  if (excl.avail)      { excluded += breakdown.avail;      exclMap['Data/Code avail.'] = breakdown.avail; }
+  if (excl.authContrib){ excluded += breakdown.authContrib;exclMap['Author contrib.']  = breakdown.authContrib; }
+  if (excl.decl)       { excluded += breakdown.decl;       exclMap['Declarations']     = breakdown.decl; }
+  if (excl.funding)    { excluded += breakdown.funding;    exclMap['Funding']          = breakdown.funding; }
+
+  return {
+    finalWords: total - excluded,
+    totalAllWords: total,
+    excludedWords: excluded,
+    tableCount, figureCount,
+    breakdown, exclMap, excl,
+    warnings: breakdown.warnings || [],
+  };
+}
+
+function getExclusionSettings() {
+  return {
+    title:      document.getElementById('excl-title').checked,
+    abstract:   document.getElementById('excl-abstract').checked,
+    keywords:   document.getElementById('excl-keywords').checked,
+    pls:        document.getElementById('excl-pls').checked,
+    authors:    document.getElementById('excl-authors').checked,
+    tables:     document.getElementById('excl-tables').checked,
+    refs:       document.getElementById('excl-refs').checked,
+    captions:   document.getElementById('excl-captions').checked,
+    ack:        document.getElementById('excl-ack').checked,
+    avail:      document.getElementById('excl-avail').checked,
+    authContrib:document.getElementById('excl-authcontrib').checked,
+    decl:       document.getElementById('excl-decl').checked,
+    funding:    document.getElementById('excl-funding').checked,
+  };
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  XML HELPERS
+// ════════════════════════════════════════════════════════════════════════════
+
+// Extract all text from a paragraph.
+// Includes tracked-change insertions (w:ins → w:t); excludes deletions (w:del).
+// IMPORTANT: skips w:txbxContent — anchored text boxes (figures, callouts) are
+// physically nested inside regular body paragraphs in DOCX XML. Without this
+// guard, figure caption text would silently inflate the containing paragraph's
+// word count. Text-box content is handled separately by countFigures().
+function getParaText(p) {
+  let text = '';
+  function walk(node) {
+    if (node.nodeType !== 1) return;
+    const ln = node.localName;
+    if (ln === 'del') return;               // skip deleted text
+    if (ln === 'instrText') return;         // skip field instructions
+    if (ln === 'txbxContent') return;       // skip anchored text boxes (figures etc.)
+    if (ln === 't') { text += node.textContent; return; }
+    for (const child of node.childNodes) walk(child);
+  }
+  walk(p);
+  return text;
+}
+
+function getParagraphStyleId(p) {
+  const pPr    = p.getElementsByTagNameNS(WNS, 'pPr')[0];
+  if (!pPr) return '';
+  const pStyle = pPr.getElementsByTagNameNS(WNS, 'pStyle')[0];
+  if (!pStyle) return '';
+  return pStyle.getAttributeNS(WNS,'val')
+      || pStyle.getAttribute('w:val')
+      || pStyle.getAttribute('val')
+      || '';
+}
+
+function countWords(str) {
+  if (!str || !str.trim()) return 0;
+  return str.trim().split(/\s+/).filter(w => w.length > 0).length;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  RESULTS DISPLAY
+// ════════════════════════════════════════════════════════════════════════════
+function showResults(stats, filename) {
+  document.getElementById('filenameText').textContent = filename;
+  document.getElementById('res-words').textContent    = stats.finalWords.toLocaleString();
+  document.getElementById('res-tables').textContent   = stats.tableCount.toLocaleString();
+  document.getElementById('res-figures').textContent  = stats.figureCount.toLocaleString();
+
+  const exclList = Object.keys(stats.exclMap).join(', ') || 'none';
+  document.getElementById('res-words-note').textContent  = `Excluding: ${exclList}`;
+  document.getElementById('res-tables-note').textContent = `Top-level non-layout tables`;
+  document.getElementById('res-figures-note').textContent= `${stats.diag.figureCountMethod || 'detected'}`;
+
+  // Warnings
+  if (stats.warnings.length > 0) {
+    warnBox.innerHTML = '<strong>⚠ Heads up:</strong><ul>'
+      + stats.warnings.map(w => `<li>${w}</li>`).join('')
+      + '</ul>';
+    warnBox.style.display = 'block';
+  }
+
+  // Detailed breakdown
+  const db = document.getElementById('detailBody');
+  const bd = stats.breakdown;
+  const rows = [
+    { label: 'Total words (all text)',   val: stats.totalAllWords },
+    { label: '— Body / main text',       val: bd.body },
+    { label: '— Title',                  val: bd.title,    excl: stats.excl.title },
+    { label: '— Abstract',               val: bd.abstract,  excl: stats.excl.abstract },
+    { label: '— Keywords',               val: bd.keywords,  excl: stats.excl.keywords },
+    { label: '— PLS / Key Points',       val: bd.pls,       excl: stats.excl.pls },
+    { label: '— Author list',            val: bd.authors,  excl: stats.excl.authors },
+    { label: '— Tables (all cell text)', val: bd.tables,   excl: stats.excl.tables },
+    { label: '— References',               val: bd.refs,       excl: stats.excl.refs },
+    { label: '— Acknowledgements',          val: bd.ack,        excl: stats.excl.ack },
+    { label: '— Data & Code Availability',  val: bd.avail,      excl: stats.excl.avail },
+    { label: '— Author Contributions',      val: bd.authContrib,excl: stats.excl.authContrib },
+    { label: '— Declarations',              val: bd.decl,       excl: stats.excl.decl },
+    { label: '— Funding',                   val: bd.funding,    excl: stats.excl.funding },
+    { label: '— Fig/table captions',     val: bd.captions, excl: stats.excl.captions },
+    { divider: true },
+    { label: 'Words excluded',           val: stats.excludedWords },
+    { label: 'Words counted (final)',    val: stats.finalWords, bold: true },
+    { divider: true },
+    { label: 'Tables',                   val: stats.tableCount },
+    { label: 'Figures',                  val: stats.figureCount },
+  ];
+
+  db.innerHTML = rows.map(r => {
+    if (r.divider) return '<div class="dr-divider"></div>';
+    const lc = r.excl ? 'dr-label dr-excluded' : (r.bold ? 'dr-label' : 'dr-label');
+    const vc = r.bold ? 'dr-val' : 'dr-val';
+    const ls = r.bold ? 'font-weight:600;color:var(--ink);' : '';
+    return `<div class="detail-row">
+      <span class="${lc}" style="${ls}">${r.label}${r.excl ? ' ✕' : ''}</span>
+      <span class="${vc}" style="${ls}">${(r.val ?? 0).toLocaleString()}</span>
+    </div>`;
+  }).join('');
+
+  // Diagnostics
+  const dg = document.getElementById('diagBody');
+  const d  = stats.diag;
+  const diagItems = [
+    ['Figure count method',   d.figureCountMethod],
+    ['Unique figure captions',d.figCaptionCount + (d.figCaptionLabels !== '—' ? ` (${d.figCaptionLabels})` : '')],
+    ['Raw image rId count',   d.rawImageRIdCount],
+    ['Dedup image count',     d.dedupImageCount + ' (by file-size grouping)'],
+    ['Tables found (total)',  d.tablesTotal],
+    ['Tables nested (skip)',  d.tablesNested],
+    ['Tables layout (skip)',  d.tablesLayout],
+    ['Tables counted',        d.tablesCounted],
+    ['Body paragraphs',       stats.breakdown.totalBodyParas],
+    ['Table paragraphs',      stats.breakdown.totalTableParas],
+  ];
+  dg.innerHTML = diagItems.map(([k, v]) =>
+    `<div class="dg-item"><span class="dg-key">${k}</span><span class="dg-val">${v}</span></div>`
+  ).join('');
+
+  resultsDiv.style.display = 'block';
+}
+
+// ── Copy summary ─────────────────────────────────────────────────────────
+document.getElementById('btnCopy').addEventListener('click', () => {
+  const words   = document.getElementById('res-words').textContent;
+  const tables  = document.getElementById('res-tables').textContent;
+  const figures = document.getElementById('res-figures').textContent;
+  const fname   = document.getElementById('filenameText').textContent;
+  const note    = document.getElementById('res-words-note').textContent;
+  const text = `Manuscript Statistics — ${fname}\nWords: ${words} (${note})\nTables: ${tables}\nFigures: ${figures}`;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('btnCopy');
+    btn.textContent = 'Copied ✓';
+    setTimeout(() => btn.textContent = 'Copy summary', 2000);
+  });
+});
+
+// ── Reset ────────────────────────────────────────────────────────────────
+document.getElementById('btnReset').addEventListener('click', () => {
+  selectedFile = null;
+  fileInput.value = '';
+  analyzeBtn.disabled = true;
+  resultsDiv.style.display = 'none';
+  warnBox.style.display = 'none';
+  hideError();
+  dropZone.querySelector('.drop-title').textContent = 'Drop your manuscript here';
+  dropZone.querySelector('.drop-sub').innerHTML = 'Supports <strong>.docx</strong> files (Microsoft Word)<br>File is processed entirely in your browser — nothing is uploaded';
+});
+
+// ── Utilities ─────────────────────────────────────────────────────────────
+function setProgress(show, label='', pct=0) {
+  progressWrap.style.display = show ? 'block' : 'none';
+  if (show) { progressLabel.textContent = label; progressFill.style.width = pct + '%'; }
+}
+function showError(msg) { errorBox.textContent = '⚠ ' + msg; errorBox.style.display = 'block'; }
+function hideError()    { errorBox.style.display = 'none'; }
+</script>
+</body>
+</html>
